@@ -1,0 +1,14 @@
+# Netlify configuration for the Willowood DFW Retail Buy Box
+# The site is fully static: index.html + the MO/ folder of Offering Memoranda.
+
+[build]
+  # No build step needed — this is a plain static site. Netlify just publishes the repo root.
+  publish = "."
+  command = ""
+
+# Serve PDFs inline (so they preview in-browser / in the dashboard popup) instead of force-downloading.
+[[headers]]
+  for = "/MO/*"
+  [headers.values]
+    Content-Disposition = "inline"
+    Cache-Control = "public, max-age=86400"
