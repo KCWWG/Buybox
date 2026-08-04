@@ -8,9 +8,13 @@ This is a **static site**. There is no build step. The whole thing is:
 
 ```
 index.html        ← the dashboard (self-contained: CSS, JS, data, and the embedded map image)
-MO/               ← the 26 Offering Memorandum PDFs (linked from each property)
+check-oms.py      ← verifies every OM link matches a real file (run before each push)
+*.pdf             ← the 26 Offering Memoranda, loose in the repo root
 netlify.toml      ← tells Netlify to serve PDFs inline and publish the repo root
 ```
+
+There is no `MO/` subfolder. The PDFs sit in the root alongside `index.html`, which is
+what `OM_BASE = ""` expects.
 
 ---
 
@@ -128,30 +132,55 @@ trusts whatever `cap_rate` says.
 
 ## How the OMs work
 
-Each property references its OM as a filename in the `href` field. Because the
-`MO/` folder is committed to this repo and deploys with the site, every OM link
-resolves automatically — no external hosting, no separate upload. Click any deal
-in the dashboard and its OM opens in the popup.
+Each property references its OM as a filename in the `href` field. Because the PDFs are
+committed to this repo and deploy with the site, every OM link resolves automatically —
+no external hosting, no separate upload. Click any deal in the dashboard and its OM
+opens in the popup.
 
 Filenames in `href` are URL-encoded (`%20` for spaces). The file on disk uses
 normal spaces.
 
-If you ever move the PDFs elsewhere, open `index.html`, find the line:
+`OM_BASE` is prepended verbatim to each property's `href` to build its link:
 
 ```js
-var OM_BASE = "";   // empty = OMs live in this same repo under MO/
+var OM_BASE = "";   // empty = PDFs sit in the repo ROOT, next to index.html
 ```
 
-and set it to the new base URL (with a trailing slash). Leaving it empty keeps
-them local.
+Empty means **no prefix**, so links resolve at the site root — `/Harmon Village -OM - LRG (1).pdf`.
+That matches how this repo is actually organised: PDFs loose in the root, no subfolder.
+
+If the PDFs ever move into a folder, set it to `"MO/"`. To host them on a separate site,
+use a full URL. **The trailing slash matters** — `"MO"` without it produces
+`MOHarmon Village...` and every link breaks at once.
+
+### Verifying the links — run this before every push
+
+`check-oms.py` compares every `href` against the files actually on disk:
+
+```bash
+python3 check-oms.py
+```
+
+It reads `OM_BASE` and looks in whatever location that points at, so it stays correct if
+the layout ever changes. It reports three categories: **OK**, **MISSING**, and
+**CASE MISMATCH**. The third one matters most — Netlify runs Linux and is case-sensitive, while Windows and macOS are not,
+so `1200 Main St OM.pdf` opens fine on your laptop and 404s on the deployed site because
+`index.html` asks for `1200 Main St OM.PDF`. It also lists any PDFs in the repo that nothing links to. Exit code is non-zero if anything is wrong, so it can gate a commit.
+
+Thirteen of the 26 filenames are fragile — browser-download `(1)` / `(2)` / `(4)` suffixes,
+underscore-for-space substitutions, a double space in `Henderson Crossing  - Cleburne`, and
+one uppercase `.PDF` extension. Re-downloading any of these from the broker will almost
+certainly produce a different filename. Either rename the file to match `index.html` or
+update the `href` — but never guess; run the checker.
 
 ### PDFs required for this version
 
-Two OMs are referenced by the new records. Save them into `MO/` with these exact names:
+Two OMs are referenced by the new records. Upload them to the repo root with these
+exact names:
 
 ```
-MO/Calloway Center - OM - SVN.pdf
-MO/Custer Four Corners - OM - SHOP.pdf
+Calloway Center - OM - SVN.pdf
+Custer Four Corners - OM - SHOP.pdf
 ```
 
 If a PDF is missing the popup still opens with the full scorecard — only the
@@ -196,17 +225,31 @@ git push -u origin main
 
 ## Updating later
 - **Change data, scoring, or text:** edit `index.html`, commit, push. Live in ~1 min.
-- **Add or replace an OM:** drop the PDF into `MO/`, make sure the property's `href`
-  in `index.html` matches the exact filename, commit, push.
-- **Counts in prose:** the hero paragraph and the map section header carry hardcoded
-  totals that the engine does not overwrite. Search for "Forty-six candidates" and
-  "All 46 Deals" when the asset count changes. The stat tiles and ranking-table
-  counts are set at runtime from `PROPERTIES.length` and need no edit.
+- **Add or replace an OM:** upload the PDF to the repo root, make sure the property's
+  `href` in `index.html` matches the exact filename, then run `python3 check-oms.py`
+  before pushing.
+- **Counts in prose — there are FIVE of them, not two.** The engine sets `hero-count`,
+  `hero-inrange` and `rank-count` at runtime from `PROPERTIES.length`, but five strings
+  are hardcoded and will silently drift. When the asset count changes, search for and
+  update every one:
+
+  | String | Location |
+  |---|---|
+  | `Vol. 05 · August 2026` | hero eyebrow badge |
+  | `Forty-six candidates (26 with verified` | hero paragraph |
+  | `All 46 Deals` | map section header |
+  | `Pipeline (46 deals): 26 with verified` | Data Sources & Methodology |
+  | `26 OM-verified deals, directional for the 20` | Data Confidence bullet |
+
+  These four numbers were out of sync with each other for several versions (the site read
+  "Forty-two candidates," "All 38 Deals," "37 Assets" and "Pipeline (42 deals)"
+  simultaneously). Reconcile all five in the same commit or the drift compounds.
 
 ---
 
 ## Notes
-- Largest PDF is ~11 MB; all are well under GitHub's 50 MB warning threshold.
+- Largest PDF is ~11 MB; all are well under GitHub's 50 MB warning threshold. GitHub's
+  web uploader caps at 100 files and 25 MB per file per drag-and-drop, which is fine here.
 - The DFW map is a real street map embedded directly in `index.html` as base64, so it
   renders everywhere (local file, Netlify, anyone's browser) with no network dependency.
   Pin positions come from a linear lat/lng fit — a new deal needs real coordinates or
