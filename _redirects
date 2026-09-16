@@ -1,0 +1,6 @@
+# Netlify proxy rules — keep this file next to index.html.
+# Map tiles are fetched through your own domain so ad blockers / network filters can't block them.
+/tiles/voyager/*  https://a.basemap.cartocdn.com/rastertiles/voyager/:splat  200
+/tiles/streets/*  https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/:splat  200
+/tiles/dark/*     https://a.basemap.cartocdn.com/dark_matter/:splat  200
+/tiles/esri/*     https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/:splat  200
